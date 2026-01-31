@@ -1,16 +1,40 @@
-import gradio as gr
-import joblib
+from flask import Flask, request, jsonify, render_template
+import pickle
 import numpy as np
+import pandas as pd
 
-model = joblib.load("linear_regression_model.pkl")
+app = Flask(__name__)
 
-def predict(x):
-    x = np.array([[x]])
-    return model.predict(x)[0]
+# Load trained model
+with open("linear_regression_model.pkl", "rb") as f:
+    model = pickle.load(f)
 
-gr.Interface(
-    fn=predict,
-    inputs=gr.Number(label="Input value"),
-    outputs=gr.Number(label="Prediction"),
-    title="Linear Regression Predictor"
-).launch()
+@app.route("/")
+def home():
+    return render_template("index.html")
+
+@app.route("/predict", methods=["POST"])
+def predict():
+    try:
+        data = request.json
+        input_df = pd.DataFrame([{
+            "age": float(data["age"]),
+            "bmi": float(data["bmi"]),
+            "children": int(data["children"]),   # ✅ NO strip here
+            "sex": str(data["sex"]).strip().lower(),
+            "smoker": str(data["smoker"]).strip().lower(),
+            "region": str(data["region"]).strip().lower()
+        }])
+
+        prediction = model.predict(input_df)
+
+        return jsonify({
+            "prediction": round(float(prediction[0]), 2)
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
